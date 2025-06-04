@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt # Untuk visualisasi riwayat emosi
 from collections import Counter # Untuk menghitung frekuensi emosi
 
 # Konfigurasi halaman
+# PASTIKAN INI HANYA ADA SATU KALI DAN DI BAGIAN ATAS SETELAH IMPORTS
 st.set_page_config(page_title="Emotify Advanced", page_icon="🚀", layout="wide")
 
 # --- Inisialisasi Session State ---
@@ -117,7 +118,8 @@ def display_emotion_chart():
             plt.tight_layout() # Menyesuaikan layout agar tidak terpotong
             st.pyplot(fig)
         else:
-            st.write("Belum ada emosi yang cukup untuk ditampilkan di grafik.") # Should not happen if emotion_history is not empty and emotion_counts is derived
+            # Ini seharusnya jarang terjadi jika emotion_history tidak kosong
+            st.write("Belum ada data emosi yang cukup untuk ditampilkan di grafik.") 
     else:
         st.write("Riwayat emosi masih kosong.")
 
@@ -126,11 +128,11 @@ def analyze_and_display_emotion(text_to_analyze, source="user_input"):
     with st.spinner("Emotify sedang memproses... 🤔"):
         try:
             output = classifier(text_to_analyze)
-            # Assuming output is like [[{'label': 'joy', 'score': 0.9}]]
-            if output and output[0]:
+            # Memastikan output tidak kosong dan memiliki struktur yang diharapkan
+            if output and isinstance(output, list) and output[0] and isinstance(output[0], list) and output[0][0]:
                 result = output[0][0] 
-                emotion = result["label"].lower()
-                confidence = round(result["score"] * 100, 2)
+                emotion = result.get("label", "tidak diketahui").lower() # Pengaman jika label tidak ada
+                confidence = round(result.get("score", 0) * 100, 2) # Pengaman jika score tidak ada
 
                 # Hanya tambahkan ke riwayat jika bukan dari analisis curhatan yang sudah ada
                 if source == "user_input" or source == "freewrite_analysis":
@@ -147,10 +149,11 @@ def analyze_and_display_emotion(text_to_analyze, source="user_input"):
                 with st.chat_message("assistant", avatar="💬"):
                     st.write(emotify_response)
             else:
-                st.error("Tidak dapat mendeteksi emosi. Model mungkin tidak memberikan output yang diharapkan.")
+                st.error("Tidak dapat mendeteksi emosi. Model mungkin tidak memberikan output yang diharapkan atau formatnya berbeda.")
+                st.write("Output model:", output) # Untuk debugging
 
         except Exception as e:
-            st.error(f"Oops, ada sedikit kendala teknis: {e}")
+            st.error(f"Oops, ada sedikit kendala teknis saat menganalisis: {e}")
             st.warning("Model yang digunakan berbasis Bahasa Inggris. Hasil mungkin lebih optimal jika kamu mencoba menyampaikan perasaan dalam Bahasa Inggris, atau gunakan kalimat Bahasa Indonesia yang sederhana dan umum.")
 
 # --- Tampilan Utama Aplikasi ---
@@ -177,8 +180,8 @@ if st.session_state.freewrite_mode:
     st.session_state.freewrite_text = st.text_area("Curahan hatimu...", value=st.session_state.freewrite_text, height=200, key="freewrite_input")
     if st.session_state.freewrite_text.strip(): # Check if text area has content
         st.session_state.show_freewrite_analysis_button = True
-    # else: # if text area is empty, ensure button is hidden
-        # st.session_state.show_freewrite_analysis_button = False # This might be too aggressive if user deletes text then retypes
+    # else: # jika area teks kosong, pastikan tombol disembunyikan saat kembali ke mode chat
+    #     st.session_state.show_freewrite_analysis_button = False # Ini mungkin terlalu agresif jika pengguna menghapus teks lalu mengetik ulang
 
 
 if not st.session_state.freewrite_mode:
@@ -216,7 +219,8 @@ with st.sidebar:
     with st.expander("🎯 Tantangan Keseimbangan Emosi", expanded=False):
         st.markdown("Coba selesaikan tantangan ini untuk melatih kesadaran emosimu:")
         all_challenges_completed = True
-        for challenge_text, completed_status in st.session_state.challenges.items():
+        # Iterasi melalui salinan item untuk menghindari error saat memodifikasi dictionary saat iterasi (meskipun di sini tidak terjadi)
+        for challenge_text, completed_status in list(st.session_state.challenges.items()):
             new_status = st.checkbox(challenge_text, value=completed_status, key=f"challenge_{challenge_text}")
             st.session_state.challenges[challenge_text] = new_status
             if not new_status:
@@ -261,8 +265,9 @@ with st.sidebar:
         _"Setiap emosi adalah pesan. Dengarkan baik-baik apa yang ingin disampaikannya padamu."_
         Apa satu pesan dari emosimu yang paling kamu perhatikan minggu ini?
         """)
-        weekly_reflection = st.text_area("Refleksiku minggu ini...", height=100, key="weekly_reflection_input")
-        if st.button("Simpan Refleksi", key="save_reflection"):
+        # Menggunakan key unik untuk text_area refleksi
+        weekly_reflection = st.text_area("Refleksiku minggu ini...", height=100, key="weekly_reflection_text_area")
+        if st.button("Simpan Refleksi", key="save_reflection_button"): # Menggunakan key unik untuk tombol
             if weekly_reflection:
                 # Di aplikasi nyata, ini bisa disimpan ke database atau file
                 st.session_state.last_reflection = weekly_reflection 
@@ -272,15 +277,16 @@ with st.sidebar:
 
 
     with st.expander("📢 Beri Masukan untuk Emotify", expanded=False):
-        feedback_text = st.text_area("Apa saranmu agar Emotify lebih baik?", height=100, key="feedback_emotify_advanced")
-        if st.button("Kirim Masukan", key="submit_feedback_emotify_advanced"):
+        # Menggunakan key unik untuk text_area masukan
+        feedback_text = st.text_area("Apa saranmu agar Emotify lebih baik?", height=100, key="feedback_text_area_emotify")
+        if st.button("Kirim Masukan", key="submit_feedback_button_emotify"): # Menggunakan key unik untuk tombol
             if feedback_text:
                 st.session_state.user_feedback.append(feedback_text)
                 st.success("Terima kasih atas masukanmu! 😊")
-                # Kosongkan field setelah submit
-                # st.session_state.feedback_emotify_advanced = "" # This will cause error, text_area key is feedback_emotify_advanced
-                # For text_area, you can't directly clear it this way after button press without rerun or more complex state handling
-                # A simple way is to inform user and let it be, or use a form.
+                # Untuk mengosongkan text_area setelah submit, cara paling mudah di Streamlit
+                # adalah dengan mengubah key-nya atau menggunakan form.
+                # Jika tidak, nilainya akan tetap ada.
+                # st.session_state.feedback_text_area_emotify = "" # Ini tidak akan bekerja seperti yang diharapkan
             else:
                 st.warning("Mohon tulis masukanmu terlebih dahulu.")
 
